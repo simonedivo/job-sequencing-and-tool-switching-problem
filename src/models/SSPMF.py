@@ -43,12 +43,12 @@ class SSPMFModel:
         self.setup_objective()
 
     def setup_variables(self):
-        """Setup the decision variables"""
+
         self.x = self.model.addVars(self.jobs, self.job_nodes, vtype=GRB.BINARY, name="X")
         self.y = self.model.addVars(self.num_nodes, self.num_nodes, self.tools, vtype=GRB.BINARY, name="Y")  
 
     def setup_constraints(self):
-        """Define the constraints for the SSPMF model."""
+
 
         for i in self.jobs:
             self.model.addConstr(gp.quicksum(self.x[i,k] for k in self.job_nodes) == 1, name=f"Job{i}InExactlyOnePosition(2b)")
@@ -95,20 +95,20 @@ class SSPMFModel:
         self.model.addConstr(gp.quicksum(self.x[p,k] for k in range(1, half_sequence_length + 1)) == 1, name="JobMaxToolsFirstHalf(2l)")
 
         """This constraint is not present in the original paper but only in the chosen paper"""
-        #for t in self.tools:
-        #    num_jobs_need_t = sum(1 for job in self.jobs if t in self.job_tools_requirements.get(job, []))
-        ##It should not be + 1 in the range cause it should iterate from 1 to J-1 where J is the number of jobs that need tool t
-        #    for k in range(1, num_jobs_need_t):
-        #        self.model.addConstr(self.y[k, self.N1, t] == 0, name=f"Tool{t}CannotLeaveMagazineBefore{num_jobs_need_t}Jobs(2m)")
+        for t in self.tools:
+            num_jobs_need_t = sum(1 for job in self.jobs if t in self.job_tools_requirements.get(job, []))
+        #It should not be + 1 in the range cause it should iterate from 1 to J-1 where J is the number of jobs that need tool t
+            for k in range(1, num_jobs_need_t):
+                self.model.addConstr(self.y[k, self.N1, t] == 0, name=f"Tool{t}CannotLeaveMagazineBefore{num_jobs_need_t}Jobs(2m)")
 
     def setup_objective(self):
-        """Define the objective function for the SSPMF model."""
+
         # again, with range() function the value reached is 1 unit shorter -> in range() len(self.job_nodes) is N-1 and len(self.job_nodes)-1 is N-2
         objective = gp.quicksum(self.y[i, self.N1, t] for t in self.tools for i in range(1, len(self.job_nodes))) + gp.quicksum(self.y[i, self.N2, t] for t in self.tools for i in range(1, len(self.job_nodes) - 1))
         self.model.setObjective(objective, GRB.MINIMIZE)
 
     def optimize(self):
-        """Optimize the model."""
+
         self.model.optimize()
 
         if self.model.status == gp.GRB.OPTIMAL:
@@ -121,7 +121,7 @@ class SSPMFModel:
             print("Optimization was stopped with status", self.model.status)
 
     def get_solution(self):
-        """Retrieve the ordering of jobs as a solution."""
+
         if self.model.status == gp.GRB.OPTIMAL:
             job_order = sorted((k, i) for i in self.jobs for k in self.job_nodes if self.x[i, k].x > 0.5)
             job_order = [i for k, i in job_order]
