@@ -3,13 +3,14 @@ from gurobipy import GRB
 import networkx as nx
 
 class JGSMFModel:
-    def __init__(self, jobs, tools, magazine_capacity, job_tools_requirements):
+    def __init__(self, jobs, tools, magazine_capacity, job_tools_requirements, bins, time_limit, isPhase3):
 
         """
         jobs: list of job IDs, from 1 to N
         tools: list of tool IDs, from 1 to M
         magazine_capacity: integer, capacity of the tool magazine
         job_tools_requirements: dict, key is job ID, value is list of required tools for that job
+        bins: list of bin IDs, from 1 to K
         """
 
         self.jobs = jobs
@@ -17,21 +18,17 @@ class JGSMFModel:
         self.magazine_capacity = magazine_capacity
         self.job_tools_requirements = job_tools_requirements
 
-
-
-        k = [1, 2, 3, 4, 5, 6, 7, 8, 9] #@TODO: implement dinamic bin number allocations
-        self.bins = k
-        self.nodes = list(range(0, len(k) + 3)) # The 3 extra nodes are H at position 0, R at position K+1, and D at position K+2
+        self.bins = bins
+        self.nodes = list(range(0, len(bins) + 3)) # The 3 extra nodes are H at position 0, R at position K+1, and D at position K+2
         
         self.cliques = find_cliques(self.jobs, self.job_tools_requirements, self.magazine_capacity)
-        print("Cliques:", self.cliques)
         self.Q = max(len(clique) for clique in self.cliques)
 
         # Special nodes
         self.START = 0
-        self.REPO = len(k) + 1
-        self.DETACHED = len(k) + 2
-        self.K = len(k) # Latest bin index
+        self.REPO = len(bins) + 1
+        self.DETACHED = len(bins) + 2
+        self.K = len(bins) # Latest bin index
 
         #print("START:", self.START)
         #print("REPO:", self.REPO)
@@ -51,6 +48,8 @@ class JGSMFModel:
 
         self.setup_variables()
         self.setup_constraints()
+        if isPhase3:
+            self.setup_phase3_constraints()
         self.setup_objective()
 
 
@@ -141,25 +140,19 @@ class JGSMFModel:
         for k in range(1, self.Q+1):
             self.model.addConstr(self.z[k] == 1, name=f"Set1BinsUntilQ(3t)")
 
+    def setup_phase3_constraints(self):
+        return
+    
     def setup_objective(self):
         
         #with range() self.K is already K-1
         objective = gp.quicksum(self.f[k,self.DETACHED,t] for t in self.tools for k in range(1, self.K)) + gp.quicksum(self.f[k,self.REPO,t] for t in self.tools for k in range(1, self.K-1))
         self.model.setObjective(objective, GRB.MINIMIZE)
 
-    
     def optimize(self):
 
         self.model.optimize()
-
-        if self.model.status == GRB.OPTIMAL:
-            print("Optimal objective:", self.model.objVal)
-        elif self.model.status == GRB.INFEASIBLE:
-            print("Model is infeasible")
-            self.model.computeIIS()
-            self.model.write("infeasibility_report.ilp")
-        else:
-            print("Optimization ended with status", self.model.status)
+        return self.model.status
 
     
     def get_solution(self):
@@ -171,6 +164,14 @@ class JGSMFModel:
             return job_order
         else:
             print("No optimal solution found.")
+            return None
+        
+    def count_switches(self):
+        if self.model.status == GRB.OPTIMAL or self.model.status == GRB.SUBOPTIMAL:
+            switches = sum(self.f[a, b, t].x for a in self.nodes for b in self.nodes for t in self.tools if self.f[a, b, t].x > 0.5)
+            return switches
+        else:
+            print("No feasible solution found.")
             return None
         
 def find_cliques(jobs, job_tools_requirements, magazine_capacity):
@@ -189,27 +190,118 @@ def find_cliques(jobs, job_tools_requirements, magazine_capacity):
     return cliques
 
 
+def phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit):
+    cliques = find_cliques(jobs, job_tools_requirements, magazine_capacity)
+    Q = max(len(clique) for clique in cliques)
+    N = len(jobs)
+    K1 = max(5, min(N, Q))
+    T1 = time_limit
+    isOptimal = False
+    while T1 > 0:
+        print(f"Trying Phase 1 with {K1} bins...")
+        bins = list(range(1, K1+1))
+        model = JGSMFModel(jobs, tools, magazine_capacity, job_tools_requirements, bins, T1, False)
+        status = model.optimize()
+        if status == GRB.SUBOPTIMAL or status == GRB.OPTIMAL:
+            T1 -= model.model.Runtime
+            if status == GRB.OPTIMAL:
+                print(f"Phase 1 found an optimal solution with {K1} bins.")
+                isOptimal = True
+                return K1, T1, model.get_solution(), isOptimal, model.count_switches()
+            print(f"Phase 1 found a feasible solution with {K1} bins.")
+            return K1, T1, None, isOptimal, model.count_switches()
+        elif status == GRB.INFEASIBLE:
+            K1 += 2
+        T1 -= model.model.Runtime
+
+    return None, None, None, None, None
+
+def phase_2(jobs, tools, magazine_capacity, job_tools_requirements, T, T1, K1, S1):
+    K2 = K1 + 1
+    T2 = (T - T1) / 2
+    isOptimal = False
+    best_solution = None
+    best_switches = S1
+
+    while T2 > 0:
+        print(f"Trying Phase 2 with {K2} bins...")
+        bins = list(range(1, K2+1))
+        model = JGSMFModel(jobs, tools, magazine_capacity, job_tools_requirements, bins, T2, False)
+        status = model.optimize()
+        
+        if status == GRB.SUBOPTIMAL or status == GRB.OPTIMAL:
+            if status == GRB.OPTIMAL:
+                print(f"Phase 2 found an optimal solution with {K2} bins.")
+                isOptimal = True
+                best_solution = model.get_solution()
+                return K2, T2, best_solution, isOptimal, model.count_switches()
+            current_switches = model.count_switches()
+            if current_switches < best_switches:
+                best_switches = current_switches
+                T2 -= model.model.Runtime
+                K2 += 1
+                continue
+            if current_switches >= best_switches:
+                T2 -= model.model.Runtime
+                break
+        elif status == GRB.INFEASIBLE:
+            T2 -= model.model.Runtime
+            break
+
+    return K2, best_solution, isOptimal, best_switches
+
+    
+    
+
+def phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T, T1, S3):
+    K3 = S3
+    T3 = (T - T1)/2
+    isOptimal = False
+    best_solution = None
+
+    while T3 > 0:
+        print(f"Trying Phase 3 with {K3} bins...")
+        bins = list(range(1, K3+1))
+        model = JGSMFModel(jobs, tools, magazine_capacity, job_tools_requirements, bins, T3, True)
+        status = model.optimize()
+        if status != GRB.SUBOPTIMAL or status != GRB.OPTIMAL:
+            return best_solution
+        if status == GRB.SUBOPTIMAL:
+            K3 -= 1
+            T3 -= model.model.Runtime
+            best_solution = model.get_solution()
+    
+    return None
 
 
+def solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, time_limit):
+    T = time_limit
+    print("Starting phase 1...")
+    K1, T1, job_order1, isOptimal, S1 = phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit)
+    if isOptimal:
+        print("Optimal solution found in phase 1.")
+        return job_order1
+    print("Starting phase 2...")
+    K2, T2, job_order2, isOptimal, S2 = phase_2(jobs, tools, magazine_capacity, job_tools_requirements, T, T1, K1, S1)
+    if isOptimal:
+        print("Optimal solution found in phase 2.")
+        return job_order2
+    print("Starting phase 3...")
+    S3 = min(S1, S2)
+    job_order3 = phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T, T1, S3)
+    if job_order3 is None:
+        print("No feasible solution found.")
+        return None
+    else:
+        print("Optimal solution found in phase 3.")
+        return job_order3
+    
 
+    
 # Example usage
-
 jobs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 tools = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 magazine_capacity = 15
 job_tools_requirements = {1: [3, 4, 10, 11, 16, 18], 2: [5, 9, 10, 16, 17, 19, 20], 3: [3, 4, 5, 6, 12, 13, 15, 16, 17, 19], 4: [3, 7, 11, 12], 5: [4, 9, 11, 12, 15, 16], 6: [1, 2, 3, 4, 7, 9, 14, 15, 16, 19], 7: [4, 8, 12, 13, 14, 17, 18, 19], 8: [1, 3, 11, 12], 9: [5, 10, 11, 16, 18]}
 
-#Tabela 4 number 84
-#jobs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-#tools = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
-#magazine_capacity = 15
-#job_tools_requirements = {1: [3, 4, 7, 9, 10, 17, 18, 19, 20, 22], 2: [1, 3, 4, 5, 7, 8, 14, 15, 19, 24, 25], 3: [5, 8, 9, 12, 14, 16, 19, 21, 23, 24, 25], 4: [1, 5, 10, 11, 14, 16, 17, 18, 20, 23, 24, 25], 5: [1, 2, 4, 5, 8, 10, 12, 14, 15, 16, 17, 21, 22, 23, 25], 6: [1, 4, 7, 11, 12, 13, 14, 15, 17, 18, 21, 22, 24, 25], 7: [5, 6, 7, 8, 9, 10, 11, 15, 17, 18, 19, 20, 23, 24, 25], 8: [1, 2, 3, 4, 5, 13, 14, 17, 19, 20, 21, 22, 24, 25], 9: [1, 5, 9, 11, 12, 13, 14, 15, 16, 18, 21, 22, 24, 25]}
-
-#jobs = [1, 2, 3, 4]
-#tools = [1, 2]
-#job_tools_requirements = {1: [1, 2], 2: [2], 3: [1], 4: [1, 2]}
-#magazine_capacity = 2
-
-model = JGSMFModel(jobs, tools, magazine_capacity, job_tools_requirements)
-model.optimize()
-print(model.get_solution())
+solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, 2)
