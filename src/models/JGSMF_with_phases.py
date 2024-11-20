@@ -266,11 +266,12 @@ def phase_2(jobs, tools, magazine_capacity, job_tools_requirements, T1, K1, S1):
     
     
 
-def phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T1, S3, job_order2):
+def phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T1, S3, job_order2, S2):
     K3 = S3
     T3 = (T1)/2
     best_solution = job_order2
     start_time = datetime.now()
+    best_switches = S2
 
     while T3 > 0:
         print(f"Checking in phase 3...")
@@ -282,10 +283,11 @@ def phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T1, S3, job_
         status = model.optimize()
 
         if status == GRB.INFEASIBLE:
-            return K3, best_solution
+            return K3, best_solution, best_switches
         if status == GRB.SUBOPTIMAL or status == GRB.OPTIMAL:
             K3 -= 1
             best_solution = model.get_solution()
+            best_switches = model.count_switches()
     
     return None, None
 
@@ -299,14 +301,14 @@ def solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, ti
 
     K2, job_order2, S2 = phase_2(jobs, tools, magazine_capacity, job_tools_requirements, T1, K1, S1)
 
-    S3 = min(S1, S2)
-    K3, job_order3 = phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T1, S3, job_order2)
+    K3 = min(S1, S2)
+    K3, job_order3, S3 = phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T1, K3, job_order2, S2)
     if job_order3 is None:
         print("No feasible solution found.")
-        return None
+        return None, None
     else:
         print("Solution found.")
-        return job_order3
+        return job_order3, S3
     
 
     

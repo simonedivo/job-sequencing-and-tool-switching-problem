@@ -34,6 +34,8 @@ class SSPMFModel:
         #print("N-2:", self.N1-3)
         
         self.model = gp.Model("SSPMF")
+        self.model.setParam('OutputFlag', 0)
+        self.model.setParam('TimeLimit', 3600)
 
         self.x = None # x[i,k]: 1 if job i is in order k (k is a node in job_nodes)
         self.y = None # y[i,j,t]: 1 if tool t is sent from node i to node j
@@ -126,10 +128,13 @@ class SSPMFModel:
             job_order = sorted((k, i) for i in self.jobs for k in self.job_nodes if self.x[i, k].x > 0.5)
             job_order = [i for k, i in job_order]
             #print("Job order:", job_order)
-            return job_order
+            return job_order, self.count_switches()
         else:
             print("No optimal solution found.")
-            return None
+            return None, None
+        
+    def count_switches(self):
+        return int(self.model.ObjVal)
         
 
 # Example usage
