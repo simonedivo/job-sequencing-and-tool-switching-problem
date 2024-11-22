@@ -30,14 +30,6 @@ class JGSMFModel:
         self.REPO = len(bins) + 1
         self.DETACHED = len(bins) + 2
         self.K = len(bins) # Latest bin index
-
-        #print("START:", self.START)
-        #print("REPO:", self.REPO)
-        #print("DETACHED:", self.DETACHED)
-        #print("K:", self.K)
-        #print("K-2: ", self.K-2)
-        #print("range K-1:", list(range(1, self.K)))
-        #print("bins: ", self.bins)
         
         self.model = gp.Model("JGSMF")
         self.model.setParam("OutputFlag", 0)
@@ -81,7 +73,7 @@ class JGSMFModel:
         for t in self.tools:
             self.model.addConstr(gp.quicksum(self.f[k,self.DETACHED,t] for k in self.bins) == 1, name=f"AllToolsWillBeRemoved(3f)")
         
-        # Doppio f uguale alla fine? -> il doppione è un errore! Uno dei due deve essere f[k, self.REPO, t]!
+        # Doppio f uguale alla fine? -> il doppione è un errore! Uno dei due deve essere f[k, self.REPO, t]
         for t in self.tools:
             for k in self.bins:
                 self.model.addConstr(self.f[k-1,k,t] + self.f[self.REPO,k,t] == self.f[k,k+1,t] + self.f[k,self.REPO,t] + self.f[k,self.DETACHED,t], name=f"FlowConservation(3g)")
@@ -101,25 +93,21 @@ class JGSMFModel:
             for k in self.bins:
                 self.model.addConstr(self.x[i,k] <= gp.quicksum(self.f[self.REPO,k-1,t] for t in required_tools), name=f"SimmetryBreakingCut(3k)")
         
-        #Node 0 is the start node
         for k in self.bins:
-            if k > 1:
-                self.model.addConstr(self.magazine_capacity * gp.quicksum(self.f[self.REPO,k-1,t] for t in self.tools) >= gp.quicksum(self.f[self.REPO,k,t] for t in self.tools), name=f"SimmetryBreakingCut(3l)")
+            self.model.addConstr(self.magazine_capacity * gp.quicksum(self.f[self.REPO,k-1,t] for t in self.tools) >= gp.quicksum(self.f[self.REPO,k,t] for t in self.tools), name=f"SimmetryBreakingCut(3l)")
         
-        #Problem with this constraint, added k < self.K because, otherwise, it would conflict with constraint 3i
         for k in self.bins:
-            if k > 1 and k < self.K:
-                self.model.addConstr(self.magazine_capacity * gp.quicksum(self.f[k-1,self.DETACHED,t] for t in self.tools) >= gp.quicksum(self.f[k,self.DETACHED,t] for t in self.tools), name=f"SimmetryBreakingCut(3m)")
+            self.model.addConstr(self.magazine_capacity * gp.quicksum(self.f[k-1,self.DETACHED,t] for t in self.tools) >= gp.quicksum(self.f[k,self.DETACHED,t] for t in self.tools), name=f"SimmetryBreakingCut(3m)")
         
-        #for t in self.tools:
-        #    for k in self.bins:
-        #        self.model.addConstr(gp.quicksum(self.x[i,k] for i in self.jobs if t in self.job_tools_requirements[i]) >= self.f[k,self.DETACHED,t], name=f"SimmetryBreakingCut(3n)")
+        for t in self.tools:
+            for k in self.bins:
+                self.model.addConstr(gp.quicksum(self.x[i,k] for i in self.jobs if t in self.job_tools_requirements[i]) >= self.f[k,self.DETACHED,t], name=f"SimmetryBreakingCut(3n)")
         
         for k in self.bins:
             for i in self.jobs:
                 required_tools = self.job_tools_requirements.get(i, [])
                 Ti_cardinality = len(required_tools)
-                self.model.addConstr(gp.quicksum(self.x[i,b] for b in range(1, self.K+1)) >= gp.quicksum(self.f[k-1,k,t] for t in required_tools) - Ti_cardinality + 1, name=f"SimmetryBreakingCut(3o)")
+                self.model.addConstr(gp.quicksum(self.x[i,b] for b in range(1, k+1)) >= gp.quicksum(self.f[k-1,k,t] for t in required_tools) - Ti_cardinality + 1, name=f"SimmetryBreakingCut(3o)")
         
         for k in self.bins:
             for i in self.jobs:
@@ -130,6 +118,7 @@ class JGSMFModel:
             if k < self.K:
                 self.model.addConstr(self.z[k+1] <= gp.quicksum(self.f[k,self.DETACHED,t] for t in self.tools), name=f"TighteningConstraint(3q)")
         
+        #Added if because it was going out of range
         for k in self.bins:
             if k < self.K:
                 self.model.addConstr(self.z[k] >= self.z[k+1], name=f"TighteningConstraint(3r)")
@@ -297,6 +286,7 @@ def solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, ti
     K1, T1, job_order1, S1 = phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit)
     
     if job_order1 is None:
+        print("No feasible solution found in the time limit.")
         return None
 
     K2, job_order2, S2 = phase_2(jobs, tools, magazine_capacity, job_tools_requirements, T1, K1, S1)
@@ -310,19 +300,3 @@ def solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, ti
         print("Solution found.")
         return job_order3, S3
     
-
-    
-# Example usage
-#jobs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-#tools = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
-#magazine_capacity = 15
-#job_tools_requirements = {1: [3, 4, 10, 11, 16, 18], 2: [5, 9, 10, 16, 17, 19, 20], 3: [3, 4, 5, 6, 12, 13, 15, 16, 17, 19], 4: [3, 7, 11, 12], 5: [4, 9, 11, 12, 15, 16], 6: [1, 2, 3, 4, 7, 9, 14, 15, 16, 19], 7: [4, 8, 12, 13, 14, 17, 18, 19], 8: [1, 3, 11, 12], 9: [5, 10, 11, 16, 18]}
-
-#Tabela 4 number 84
-#jobs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-#tools = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
-#magazine_capacity = 15
-#job_tools_requirements = {1: [3, 4, 7, 9, 10, 17, 18, 19, 20, 22], 2: [1, 3, 4, 5, 7, 8, 14, 15, 19, 24, 25], 3: [5, 8, 9, 12, 14, 16, 19, 21, 23, 24, 25], 4: [1, 5, 10, 11, 14, 16, 17, 18, 20, 23, 24, 25], 5: [1, 2, 4, 5, 8, 10, 12, 14, 15, 16, 17, 21, 22, 23, 25], 6: [1, 4, 7, 11, 12, 13, 14, 15, 17, 18, 21, 22, 24, 25], 7: [5, 6, 7, 8, 9, 10, 11, 15, 17, 18, 19, 20, 23, 24, 25], 8: [1, 2, 3, 4, 5, 13, 14, 17, 19, 20, 21, 22, 24, 25], 9: [1, 5, 9, 11, 12, 13, 14, 15, 16, 18, 21, 22, 24, 25]}
-
-#solution = solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, 3600)
-#print(solution)

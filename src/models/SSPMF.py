@@ -2,7 +2,6 @@ import gurobipy as gp
 from gurobipy import GRB
 import math
 
-# Provare a togliere tutti i constraint e ad aggiungerli una ad uno e vedere quando smette di funzionare
 class SSPMFModel:
     def __init__(self, jobs, tools, magazine_capacity, job_tools_requirements):
 
@@ -21,23 +20,12 @@ class SSPMFModel:
         self.job_nodes = list(range(1, len(jobs) + 1)) # nodes from 1 to N
         self.N2 = len(self.num_nodes) - 1 # N+2
         self.N1 = len(self.num_nodes) - 2 # N+1
-        #print("jobs:", self.jobs)
-        #print("tools:", self.tools)
-        #print("magazine_capacity:", self.magazine_capacity)
-        #print("job_tools_requirements:", self.job_tools_requirements)
-        #print("num_nodes:", self.num_nodes)
-        #print("job_nodes:", self.job_nodes)
-        #print("N2:", self.N2)
-        #print("N1:", self.N1)
-        #print("N:", self.N1-1)
-        #print("N-1:", self.N1-2)
-        #print("N-2:", self.N1-3)
         
         self.model = gp.Model("SSPMF")
         self.model.setParam('OutputFlag', 0)
         self.model.setParam('TimeLimit', 3600)
 
-        self.x = None # x[i,k]: 1 if job i is in order k (k is a node in job_nodes)
+        self.x = None # x[i,k]: 1 if job i is in position k (k is a node in job_nodes)
         self.y = None # y[i,j,t]: 1 if tool t is sent from node i to node j
 
         self.setup_variables()
@@ -67,7 +55,7 @@ class SSPMFModel:
                 self.model.addConstr(self.y[i-1,i,t] + self.y[self.N2,i,t] - self.y[i,self.N1,t] - self.y[i,i+1,t] - self.y[i,self.N2,t] == 0, name=f"FlowConservation(2e)")
 
         """In the original paper the last operation of the equation is minus and not plus"""
-        # len(self.job_nodes)-2 equal N-2 while len(self.job_nodes)-1 equals N-1, last operation should be minus like in the original paper and not plus!!
+        # len(self.job_nodes)-2 equal N-2 while len(self.job_nodes)-1 equals N-1, last operation should be minus like in the original paper and not plus
         for t in self.tools:
             self.model.addConstr(self.y[len(self.job_nodes)-2,len(self.job_nodes)-1,t] + self.y[self.N2,len(self.job_nodes)-1,t] - self.y[len(self.job_nodes)-1,len(self.job_nodes),t] - self.y[len(self.job_nodes)-1,self.N1,t] == 0, name=f"FlowConservationLastNode(2f)")
 
@@ -88,7 +76,6 @@ class SSPMFModel:
                     for t in required_tools:
                         self.model.addConstr(self.x[i, k] <= self.y[k-1, k, t], name=f"UnitFlow(2j)")
 
-        # means all arcs 0->1,...,N-1->N (without N+1 and N+2) are equal to magazine capacity
         for k in self.job_nodes:
             self.model.addConstr(gp.quicksum(self.y[k-1,k,t] for t in self.tools) == self.magazine_capacity, name=f"MaxFlowCapacity(2k)")
 
@@ -96,10 +83,8 @@ class SSPMFModel:
         half_sequence_length = math.ceil(len(self.job_nodes) / 2)
         self.model.addConstr(gp.quicksum(self.x[p,k] for k in range(1, half_sequence_length + 1)) == 1, name="JobMaxToolsFirstHalf(2l)")
 
-        """This constraint is not present in the original paper but only in the chosen paper"""
         for t in self.tools:
-            num_jobs_need_t = sum(1 for job in self.jobs if t in self.job_tools_requirements.get(job, []))
-        #It should not be + 1 in the range cause it should iterate from 1 to J-1 where J is the number of jobs that need tool t
+            num_jobs_need_t = sum(1 for job in self.jobs if t in self.job_tools_requirements.get(job, []))       
             for k in range(1, num_jobs_need_t):
                 self.model.addConstr(self.y[k, self.N1, t] == 0, name=f"Tool{t}CannotLeaveMagazineBefore{num_jobs_need_t}Jobs(2m)")
 
@@ -136,30 +121,3 @@ class SSPMFModel:
     def count_switches(self):
         return int(self.model.ObjVal)
         
-
-# Example usage
-#jobs = [1, 2, 3, 4]
-#tools = [1, 2]
-#job_tools_requirements = {1: [1, 2], 2: [2], 3: [1], 4: [1, 2]}
-#magazine_capacity = 2
-
-#jobs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-#tools = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
-#magazine_capacity = 15
-#job_tools_requirements = {1: [3, 4, 10, 11, 16, 18], 2: [5, 9, 10, 16, 17, 19, 20], 3: [3, 4, 5, 6, 12, 13, 15, 16, 17, 19], 4: [3, 7, 11, 12], 5: [4, 9, 11, 12, 15, 16], 6: [1, 2, 3, 4, 7, 9, 14, 15, 16, 19], 7: [4, 8, 12, 13, 14, 17, 18, 19], 8: [1, 3, 11, 12], 9: [5, 10, 11, 16, 18]}
-
-#Tabela 4 number 84
-#jobs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-#tools = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
-#magazine_capacity = 15
-#job_tools_requirements = {1: [3, 4, 7, 9, 10, 17, 18, 19, 20, 22], 2: [1, 3, 4, 5, 7, 8, 14, 15, 19, 24, 25], 3: [5, 8, 9, 12, 14, 16, 19, 21, 23, 24, 25], 4: [1, 5, 10, 11, 14, 16, 17, 18, 20, 23, 24, 25], 5: [1, 2, 4, 5, 8, 10, 12, 14, 15, 16, 17, 21, 22, 23, 25], 6: [1, 4, 7, 11, 12, 13, 14, 15, 17, 18, 21, 22, 24, 25], 7: [5, 6, 7, 8, 9, 10, 11, 15, 17, 18, 19, 20, 23, 24, 25], 8: [1, 2, 3, 4, 5, 13, 14, 17, 19, 20, 21, 22, 24, 25], 9: [1, 5, 9, 11, 12, 13, 14, 15, 16, 18, 21, 22, 24, 25]}
-
-#Tabela4 number 82
-#jobs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-#tools = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
-#magazine_capacity = 15
-#job_tools_requirements = {1: [1, 3, 4, 6, 7, 9, 10, 12, 13, 15, 17, 18, 20, 21, 25], 2: [3, 4, 5, 8, 12, 17, 18, 19, 21, 22, 23], 3: [4, 11, 12, 13, 14, 18, 20, 22, 23, 25], 4: [4, 5, 8, 10, 11, 12, 13, 15, 17, 19, 20, 23, 24], 5: [1, 2, 5, 6, 7, 14, 15, 16, 18, 21, 22, 24], 6: [2, 5, 7, 9, 10, 13, 14, 15, 16, 17, 19, 20, 24], 7: [3, 5, 6, 7, 9, 12, 15, 16, 17, 24], 8: [1, 3, 5, 6, 7, 8, 12, 13, 16, 17, 18, 21, 23, 24, 25], 9: [1, 4, 6, 7, 8, 9, 10, 11, 13, 14, 17, 19, 21, 22, 23]}
-#
-#model =SSPMFModel(jobs, tools, magazine_capacity, job_tools_requirements)
-#model.optimize()
-#print(model.get_solution())
