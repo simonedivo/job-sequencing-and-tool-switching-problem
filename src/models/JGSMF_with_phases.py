@@ -74,7 +74,6 @@ class JGSMFModel:
         for t in self.tools:
             self.model.addConstr(gp.quicksum(self.f[k,self.DETACHED,t] for k in self.bins) == 1, name=f"AllToolsWillBeRemoved(3f)")
         
-        # Doppio f uguale alla fine? -> il doppione è un errore! Uno dei due deve essere f[k, self.REPO, t]
         for t in self.tools:
             for k in self.bins:
                 self.model.addConstr(self.f[k-1,k,t] + self.f[self.REPO,k,t] == self.f[k,k+1,t] + self.f[k,self.REPO,t] + self.f[k,self.DETACHED,t], name=f"FlowConservation(3g)")
