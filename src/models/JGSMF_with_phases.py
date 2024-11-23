@@ -20,6 +20,7 @@ class JGSMFModel:
         self.job_tools_requirements = job_tools_requirements
 
         self.bins = bins
+        self.zbins = list(range(1, len(bins) + 2)) # One extra bin to set to 0 at the end
         self.nodes = list(range(0, len(bins) + 3)) # The 3 extra nodes are H at position 0, R at position K+1, and D at position K+2
         
         self.cliques = find_cliques(self.jobs, self.job_tools_requirements, self.magazine_capacity)
@@ -49,7 +50,7 @@ class JGSMFModel:
     def setup_variables(self):
 
         self.x = self.model.addVars(self.jobs, self.bins, vtype=GRB.BINARY, name="X")
-        self.z = self.model.addVars(self.bins, vtype=GRB.BINARY, name="Z")
+        self.z = self.model.addVars(self.zbins, vtype=GRB.BINARY, name="Z")
         self.f = self.model.addVars(self.nodes, self.nodes, self.tools, vtype=GRB.BINARY, name="F")
 
 
@@ -113,12 +114,11 @@ class JGSMFModel:
             for i in self.jobs:
                 self.model.addConstr(self.z[k] >= self.x[i,k], name=f"TighteningConstraint(3p)")
         
-        #Added if because it was going out of range
+        self.model.addConstr(self.z[self.K+1] == 0, name=f"SetExtraBinAt0(3extra)")
         for k in self.bins:
             if k < self.K:
                 self.model.addConstr(self.z[k+1] <= gp.quicksum(self.f[k,self.DETACHED,t] for t in self.tools), name=f"TighteningConstraint(3q)")
         
-        #Added if because it was going out of range
         for k in self.bins:
             if k < self.K:
                 self.model.addConstr(self.z[k] >= self.z[k+1], name=f"TighteningConstraint(3r)")
@@ -237,11 +237,11 @@ def phase_2(jobs, tools, magazine_capacity, job_tools_requirements, T1, K1, S1):
         if status == GRB.SUBOPTIMAL or status == GRB.OPTIMAL:
             best_solution = model.get_solution()
             current_switches = model.count_switches()
-            if current_switches < best_switches:
-                best_switches = current_switches
-                K2 += 1
             if current_switches >= best_switches:
                 break
+            if current_switches < best_switches:
+                best_switches = current_switches
+                K2 += 1         
         elif status == GRB.INFEASIBLE:
             break
     
