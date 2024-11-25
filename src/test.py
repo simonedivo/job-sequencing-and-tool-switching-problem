@@ -1,5 +1,5 @@
 from models.SSPMF import SSPMFModel
-from models.JGSMF_with_phases import solve_with_phases
+from models.JGSMF_3 import solve_with_phases
 from utils.test_utils import cluster_to_dataframe
 
 cluster_directory = "../data/MTSP/Laporte/Tabela4/"

@@ -122,12 +122,6 @@ class JGSMFModel:
             if k < self.K:
                 self.model.addConstr(self.z[k] >= self.z[k+1], name=f"TighteningConstraint(3r)")
         
-        for l in self.cliques:
-            for k in self.bins:
-                self.model.addConstr(self.z[k] >= gp.quicksum(self.x[i,k] for i in l), name=f"TighteningCliquesConstraint(3s)")
-        
-        for k in range(1, self.Q+1):
-            self.model.addConstr(self.z[k] == 1, name=f"Set1BinsUntilQ(3t)")
 
 
     def setup_phase3_constraints(self):
@@ -193,11 +187,14 @@ def phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit):
     cliques = find_cliques(jobs, job_tools_requirements, magazine_capacity)
     Q = max(len(clique) for clique in cliques)
     N = len(jobs)
-    K1 = max(5, min(N, Q))
+    K0 = max(5, min(N, Q))
+    K1 = K0
     T1 = time_limit
     start_time = datetime.now()
 
     while T1 > 0:
+        if (K1 > K0 * 3):
+            break
         print(f"Trying Phase 1 with {K1} bins...")
         elapsed_time = (datetime.now() - start_time).total_seconds()
         T1 = round(T1 - elapsed_time, 3)
@@ -298,4 +295,14 @@ def solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, ti
     else:
         print("Solution found.")
         return job_order3, S3
+    
+def solve_with_constant_bins(jobs, tools, magazine_capacity, job_tools_requirements, num_bins,time_limit):
+
+    model = JGSMFModel(jobs, tools, magazine_capacity, job_tools_requirements, list(range(1, num_bins+1)), time_limit, False)
+    status = model.optimize()
+
+    if status == GRB.OPTIMAL:
+        return model.get_solution(), model.count_switches()
+    elif status == GRB.INFEASIBLE:
+        return None, None
     

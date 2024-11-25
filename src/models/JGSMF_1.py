@@ -88,6 +88,27 @@ class JGSMFModel:
         for t in self.tools:
             self.model.addConstr(self.f[self.START,self.REPO,t] + gp.quicksum(self.f[k,self.REPO,t] for k in range(1, self.K-1)) == gp.quicksum(self.f[self.REPO,k,t] for k in range(1,self.K)), name=f"FlowConservation(3j)")
         
+        for i in self.jobs:
+            required_tools = self.job_tools_requirements.get(i, [])    
+            for k in self.bins:
+                self.model.addConstr(self.x[i,k] <= gp.quicksum(self.f[self.REPO,k-1,t] for t in required_tools), name=f"SimmetryBreakingCut(3k)")
+        
+        for k in self.bins:
+            self.model.addConstr(self.magazine_capacity * gp.quicksum(self.f[self.REPO,k-1,t] for t in self.tools) >= gp.quicksum(self.f[self.REPO,k,t] for t in self.tools), name=f"SimmetryBreakingCut(3l)")
+        
+        for k in self.bins:
+            self.model.addConstr(self.magazine_capacity * gp.quicksum(self.f[k-1,self.DETACHED,t] for t in self.tools) >= gp.quicksum(self.f[k,self.DETACHED,t] for t in self.tools), name=f"SimmetryBreakingCut(3m)")
+        
+        for t in self.tools:
+            for k in self.bins:
+                self.model.addConstr(gp.quicksum(self.x[i,k] for i in self.jobs if t in self.job_tools_requirements[i]) >= self.f[k,self.DETACHED,t], name=f"SimmetryBreakingCut(3n)")
+        
+        for k in self.bins:
+            for i in self.jobs:
+                required_tools = self.job_tools_requirements.get(i, [])
+                Ti_cardinality = len(required_tools)
+                self.model.addConstr(gp.quicksum(self.x[i,b] for b in range(1, k+1)) >= gp.quicksum(self.f[k-1,k,t] for t in required_tools) - Ti_cardinality + 1, name=f"SimmetryBreakingCut(3o)")
+        
         self.model.addConstr(self.z[self.K+1] == 0, name=f"SetExtraBinAt0(3extra)")
 
 
@@ -160,6 +181,8 @@ def phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit):
     start_time = datetime.now()
 
     while T1 > 0:
+        if (K1 > K0 * 3):
+            break
         print(f"Trying Phase 1 with {K1} bins...")
         elapsed_time = (datetime.now() - start_time).total_seconds()
         T1 = round(T1 - elapsed_time, 3)
