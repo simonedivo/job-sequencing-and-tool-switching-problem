@@ -32,7 +32,7 @@ print("---------------------------------")
 print("Testing JGSMF model...")
 
 time_limit = 3600
-JGSMF_solution = solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, time_limit)
+JGSMF_solution = solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, None)
 
 print("JGSMF solution")
 print("Job order: ", JGSMF_solution[0], " with", JGSMF_solution[1] , "switches")

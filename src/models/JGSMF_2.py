@@ -183,22 +183,20 @@ def find_cliques(jobs, job_tools_requirements, magazine_capacity):
     return cliques
 
 
-def phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit):
-    cliques = find_cliques(jobs, job_tools_requirements, magazine_capacity)
-    Q = max(len(clique) for clique in cliques)
-    N = len(jobs)
-    K0 = max(5, min(N, Q))
+def phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, num_bins):
+    if num_bins is not None:
+        cliques = find_cliques(jobs, job_tools_requirements, magazine_capacity)
+        Q = max(len(clique) for clique in cliques)
+        N = len(jobs)
+        K0 = max(5, min(N, Q))
+    else:
+        K0 = num_bins
     K1 = K0
     T1 = time_limit
     start_time = datetime.now()
 
     while T1 > 0:
-        if (K1 > K0 * 3):
-            break
         print(f"Trying Phase 1 with {K1} bins...")
-        elapsed_time = (datetime.now() - start_time).total_seconds()
-        T1 = round(T1 - elapsed_time, 3)
-
         bins = list(range(1, K1+1))
         model = JGSMFModel(jobs, tools, magazine_capacity, job_tools_requirements, bins, T1, False)
         status = model.optimize()
@@ -208,6 +206,9 @@ def phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit):
             return K1, T1, model.get_solution(), model.count_switches()
         elif status == GRB.INFEASIBLE:
             K1 += 2
+        
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        T1 = round(T1 - elapsed_time, 3)
 
     print("Time limit reached in phase 1.")
     return None, None, None, None
@@ -222,13 +223,9 @@ def phase_2(jobs, tools, magazine_capacity, job_tools_requirements, T1, K1, S1):
 
     while T2 > 0:
         print(f"Trying Phase 2 with {K2} bins...")
-        elapsed_time = (datetime.now() - start_time).total_seconds()
-        T2 = round(T2 - elapsed_time, 3)
-
         bins = list(range(1, K2+1))
         model = JGSMFModel(jobs, tools, magazine_capacity, job_tools_requirements, bins, T2, False)
         status = model.optimize()
-
         
         if status == GRB.SUBOPTIMAL or status == GRB.OPTIMAL:
             best_solution = model.get_solution()
@@ -240,6 +237,9 @@ def phase_2(jobs, tools, magazine_capacity, job_tools_requirements, T1, K1, S1):
                 K2 += 1         
         elif status == GRB.INFEASIBLE:
             break
+
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        T2 = round(T2 - elapsed_time, 3)
     
     if T2 <= 0:
         print("Time limit reached in phase 2")
@@ -260,9 +260,6 @@ def phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T1, S3, job_
 
     while T3 > 0:
         print(f"Checking in phase 3...")
-        elapsed_time = (datetime.now() - start_time).total_seconds()
-        T3 = round(T3 - elapsed_time, 3)
-
         bins = list(range(1, K3+1))
         model = JGSMFModel(jobs, tools, magazine_capacity, job_tools_requirements, bins, T3, True)
         status = model.optimize()
@@ -273,13 +270,16 @@ def phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T1, S3, job_
             K3 -= 1
             best_solution = model.get_solution()
             best_switches = model.count_switches()
+        
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        T3 = round(T3 - elapsed_time, 3)
     
     return None, None
 
 
-def solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, time_limit):
+def solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, num_bins):
 
-    K1, T1, job_order1, S1 = phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit)
+    K1, T1, job_order1, S1 = phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, num_bins)
     
     if job_order1 is None:
         print("No feasible solution found in the time limit.")
