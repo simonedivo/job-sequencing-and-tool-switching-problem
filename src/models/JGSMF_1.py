@@ -172,7 +172,7 @@ def find_cliques(jobs, job_tools_requirements, magazine_capacity):
 
 
 def phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, num_bins):
-    if num_bins is not None:
+    if num_bins is None:
         cliques = find_cliques(jobs, job_tools_requirements, magazine_capacity)
         Q = max(len(clique) for clique in cliques)
         N = len(jobs)
