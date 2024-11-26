@@ -29,6 +29,6 @@ pip install -r requirements.txt
 ```
 4. Launch **test.py**
 ```sh
-cd ./src
+cd src
 python test.py
 ```
