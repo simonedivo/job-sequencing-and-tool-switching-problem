@@ -23,11 +23,12 @@ git clone https://github.com/simonedivo/job-sequencing-and-tool-switching-proble
 ```sh
 cd job-sequencing-and-tool-switching-problem
 ```
-3. Install the required packages
+3. Install the required packages with pip or singularly by checking the *requirements.txt* file
 ```sh
 pip install -r requirements.txt
 ```
 4. Launch **test.py**
 ```sh
-python ./src/test.py
+cd ./src
+python test.py
 ```
