@@ -186,7 +186,7 @@ def find_cliques(jobs, job_tools_requirements, magazine_capacity):
     return cliques
 
 
-def phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, num_bins):
+def phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, num_bins, log):
     if num_bins is None:
         cliques = find_cliques(jobs, job_tools_requirements, magazine_capacity)
         Q = max(len(clique) for clique in cliques)
@@ -202,6 +202,9 @@ def phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, 
         print(f"Trying Phase 1 with {K1} bins...")
         bins = list(range(1, K1+1))
         model = JGSMFModel(jobs, tools, magazine_capacity, job_tools_requirements, bins, T1, False)
+        if log is not None:
+            model.model.setParam("LogFile", log)
+            model.model.setParam("OutputFlag", 1)
         status = model.optimize()
 
         if status == GRB.SUBOPTIMAL or status == GRB.OPTIMAL:
@@ -217,7 +220,7 @@ def phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, 
     return None, None, None, None
 
 
-def phase_2(jobs, tools, magazine_capacity, job_tools_requirements, T1, K1, S1):
+def phase_2(jobs, tools, magazine_capacity, job_tools_requirements, T1, K1, S1, log):
     K2 = K1 + 1
     T2 = (T1) / 2
     best_solution = None
@@ -228,6 +231,9 @@ def phase_2(jobs, tools, magazine_capacity, job_tools_requirements, T1, K1, S1):
         print(f"Trying Phase 2 with {K2} bins...")
         bins = list(range(1, K2+1))
         model = JGSMFModel(jobs, tools, magazine_capacity, job_tools_requirements, bins, T2, False)
+        if log is not None:
+            model.model.setParam("LogFile", log)
+            model.model.setParam("OutputFlag", 1)
         status = model.optimize()
 
         
@@ -255,7 +261,7 @@ def phase_2(jobs, tools, magazine_capacity, job_tools_requirements, T1, K1, S1):
     
     
 
-def phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T1, S3, job_order2, S2):
+def phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T1, S3, job_order2, S2, log):
     K3 = S3
     T3 = (T1)/2
     best_solution = job_order2
@@ -266,6 +272,9 @@ def phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T1, S3, job_
         print(f"Checking in phase 3...")
         bins = list(range(1, K3+1))
         model = JGSMFModel(jobs, tools, magazine_capacity, job_tools_requirements, bins, T3, True)
+        if log is not None:
+            model.model.setParam("LogFile", log)
+            model.model.setParam("OutputFlag", 1)
         status = model.optimize()
 
         if status == GRB.INFEASIBLE:
@@ -281,18 +290,18 @@ def phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T1, S3, job_
     return None, None
 
 
-def solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, num_bins):
+def solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, num_bins, log=None):
 
-    K1, T1, job_order1, S1 = phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, num_bins)
+    K1, T1, job_order1, S1 = phase_1(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, num_bins, log)
     
     if job_order1 is None:
         print("No feasible solution found in the time limit.")
         return None
 
-    K2, job_order2, S2 = phase_2(jobs, tools, magazine_capacity, job_tools_requirements, T1, K1, S1)
+    K2, job_order2, S2 = phase_2(jobs, tools, magazine_capacity, job_tools_requirements, T1, K1, S1, log)
 
     K3 = min(S1, S2)
-    K3, job_order3, S3 = phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T1, K3, job_order2, S2)
+    K3, job_order3, S3 = phase_3(jobs, tools, magazine_capacity, job_tools_requirements, T1, K3, job_order2, S2, log)
     if job_order3 is None:
         print("No feasible solution found.")
         return None, None

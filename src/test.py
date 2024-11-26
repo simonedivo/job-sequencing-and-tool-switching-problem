@@ -18,21 +18,23 @@ jobs = [x for x in range(1, num_jobs + 1)]
 tools = [x for x in range(1, num_tools + 1)]
 
 SSPMF_model = SSPMFModel(jobs, tools, magazine_capacity, job_tools_requirements)
+SSPMF_model.model.setParam('LogFile', 'SSPMF.log')
+SSPMF_model.model.setParam('OutputFlag', 1)
 SSPMF_model.optimize()
 
 print("Testing SSPMF model...")
 
 SSPMF_solution = SSPMF_model.get_solution()
 
-print("SSPMF solution")
-print("Job order: ", SSPMF_solution[0], " with", SSPMF_solution[1] , "switches")
-
 print("---------------------------------")
 
 print("Testing JGSMF model...")
 
 time_limit = 3600
-JGSMF_solution = solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, None)
+JGSMF_solution = solve_with_phases(jobs, tools, magazine_capacity, job_tools_requirements, time_limit, None, 'JGSMF.log')
 
+
+print("SSPMF solution")
+print("Job order: ", SSPMF_solution[0], " with", SSPMF_solution[1] , "switches")
 print("JGSMF solution")
 print("Job order: ", JGSMF_solution[0], " with", JGSMF_solution[1] , "switches")
