@@ -38,7 +38,7 @@ class JGSMFModel:
 
         self.x = None # x[i,k]: 1 if job i is in bin k
         self.z = None # z[k]: 1 if bin k has at least one job
-        self.f = None # f[a,b,t]: 1 if tool t is transfered from a (H ∪ R ∪ B) and b (R ∪ D ∪ B)
+        self.f = None # f[a,b,t]: 1 if tool t is transfered from a (H ∪ R ∪ B) to b (R ∪ D ∪ B)
 
         self.setup_variables()
         self.setup_constraints()
