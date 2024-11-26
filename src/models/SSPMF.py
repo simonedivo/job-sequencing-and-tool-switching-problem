@@ -54,7 +54,6 @@ class SSPMFModel:
             for i in range(1, len(self.job_nodes)-1):
                 self.model.addConstr(self.y[i-1,i,t] + self.y[self.N2,i,t] - self.y[i,self.N1,t] - self.y[i,i+1,t] - self.y[i,self.N2,t] == 0, name=f"FlowConservation(2e)")
 
-        """In the original paper the last operation of the equation is minus and not plus"""
         # len(self.job_nodes)-2 equal N-2 while len(self.job_nodes)-1 equals N-1, last operation should be minus like in the original paper and not plus
         for t in self.tools:
             self.model.addConstr(self.y[len(self.job_nodes)-2,len(self.job_nodes)-1,t] + self.y[self.N2,len(self.job_nodes)-1,t] - self.y[len(self.job_nodes)-1,len(self.job_nodes),t] - self.y[len(self.job_nodes)-1,self.N1,t] == 0, name=f"FlowConservationLastNode(2f)")
@@ -65,7 +64,6 @@ class SSPMFModel:
         for t in self.tools:
             self.model.addConstr(gp.quicksum(self.y[i,self.N1,t] for i in self.job_nodes) == 1, name=f"FlowConservation(2h)")
 
-        """In the original paper the first sum starts from 0 and not from 1"""
         # range() of len(self.job_nodes)-1 equals N-2, there is a problem in the paper which differ from the original code paper: first sum must start at 0 not 1
         for t in self.tools:
             self.model.addConstr(gp.quicksum(self.y[i,self.N2,t] for i in range(0, len(self.job_nodes)-1)) - gp.quicksum(self.y[self.N2,i,t] for i in range(1,len(self.job_nodes))) == 0, name=f"FlowConservation(2i)")
@@ -112,7 +110,6 @@ class SSPMFModel:
         if self.model.status == gp.GRB.OPTIMAL:
             job_order = sorted((k, i) for i in self.jobs for k in self.job_nodes if self.x[i, k].x > 0.5)
             job_order = [i for k, i in job_order]
-            #print("Job order:", job_order)
             return job_order, self.count_switches()
         else:
             print("No optimal solution found.")

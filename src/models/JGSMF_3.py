@@ -160,11 +160,6 @@ class JGSMFModel:
         if self.model.status == gp.GRB.OPTIMAL:
             job_order = sorted((k, i) for i in self.jobs for k in self.bins if self.x[i, k].x > 0.5)
             job_order = [i for k, i in job_order]
-            #print("Job order:", job_order)
-            #bins_used = set(k for i in self.jobs for k in self.bins if self.x[i, k].x > 0.5)
-            #num_bins_used = len(bins_used)
-            #print("Bins used:", bins_used)
-            #print("Number of bins used:", num_bins_used)
             return job_order
         else:
             #print("No optimal solution found.")
