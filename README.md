@@ -1,4 +1,4 @@
-### Project for the exam of Mathematical Optimisation
+# Project for the exam of Mathematical Optimisation
 
 ## Paper
 The Paper on which the models are based on, is [Exploiting symmetry for the job sequencing and tool switching problem](https://www.sciencedirect.com/science/article/pii/S0377221724001632?ref=pdf_download&fr=RR-2&rr=8df4b052daf24c4a).
